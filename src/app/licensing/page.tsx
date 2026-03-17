@@ -10,7 +10,7 @@ import { Logo } from '@/components/Logo';
 import { CheckCircle, ArrowLeft, MessageSquareQuote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { getLicenseInfo, savePlanForActivation } from '@/lib/license';
+import { getLicenseInfo, savePlanForActivation, setLicense } from '@/lib/license';
 import Link from 'next/link';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
@@ -121,6 +121,31 @@ export default function LicensingPage() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
                     <div className="lg:col-span-2 space-y-8">
+                        {!licenseExists && (
+                            <Card className="border-primary/40 bg-primary/5">
+                                <CardHeader>
+                                    <CardTitle>Prueba gratuita de 30 días</CardTitle>
+                                    <CardDescription>
+                                        Activa una membresía gratuita por 1 mes para probar SmartPig con todas las funciones básicas.
+                                    </CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                                    <p className="text-sm text-gray-700">
+                                        Pasado el mes de prueba ya no podrás registrar nueva información, pero podrás activar en cualquier momento un plan de pago.
+                                    </p>
+                                    <Button
+                                        variant="default"
+                                        onClick={() => {
+                                            setLicense('demo', 1);
+                                            router.push('/dashboard');
+                                        }}
+                                    >
+                                        Activar prueba gratis de 1 mes
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        )}
+
                         <Card>
                             <CardHeader>
                                 <CardTitle>1. ¿Cuántas madres productivas tienes en tu granja?</CardTitle>
