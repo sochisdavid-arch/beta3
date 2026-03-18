@@ -231,7 +231,7 @@ export default function GestationPage() {
   React.useEffect(() => {
     if (!user) return;
 
-    const loadPigs = async () => {
+    const loadPigsFromStore = async () => {
       try {
         const allPigs: Pig[] = await loadPigs<Pig>(user.uid, initialPigs);
         const processedPigs = allPigs.map((p: Pig) => ({
@@ -249,7 +249,7 @@ export default function GestationPage() {
       }
     };
 
-    loadPigs();
+    loadPigsFromStore();
   }, [user]);
 
 
