@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/context/AuthContext';
+import { loadPigs } from '@/lib/pigsStore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Filter, Download } from 'lucide-react';
 import { format, parseISO, isValid, differenceInDays, startOfDay, endOfDay, sub, eachMonthOfInterval, differenceInCalendarDays } from 'date-fns';
@@ -70,6 +72,7 @@ export default function ServiceAnalysisPage() {
     const [pigs, setPigs] = React.useState<Pig[]>([]);
     const [serviceRecords, setServiceRecords] = React.useState<ServiceRecord[]>([]);
     const [breedOptions, setBreedOptions] = React.useState<string[]>([]);
+    const { user } = useAuth();
     
     // Filter States
     const [startDate, setStartDate] = React.useState<string>(format(sub(new Date(), { years: 1 }), 'yyyy-MM-dd'));
@@ -86,12 +89,15 @@ export default function ServiceAnalysisPage() {
 
 
     React.useEffect(() => {
-        const pigsFromStorage = localStorage.getItem('pigs');
-        const allPigs: Pig[] = pigsFromStorage ? JSON.parse(pigsFromStorage) : [];
-        setPigs(allPigs);
-        const breeds = new Set(allPigs.map(p => p.breed));
-        setBreedOptions(['all', ...Array.from(breeds)]);
-    }, []);
+        if (!user) return;
+        const run = async () => {
+            const allPigs: Pig[] = await loadPigs<Pig>(user.uid, []);
+            setPigs(allPigs);
+            const breeds = new Set(allPigs.map(p => p.breed));
+            setBreedOptions(['all', ...Array.from(breeds)]);
+        };
+        run().catch((e) => console.error('Service analysis load failed', e));
+    }, [user]);
 
     const handleFilter = React.useCallback(() => {
         const start = startOfDay(parseISO(startDate));

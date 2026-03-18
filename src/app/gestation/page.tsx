@@ -37,9 +37,8 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { deductFromStock, getInventory } from '@/lib/inventory';
 import { checkLicense, getLicenseInfo } from '@/lib/license';
-import { firestoreDb } from '@/lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
+import { loadPigs, savePigs } from '@/lib/pigsStore';
 
 
 type EventType = "Celo" | "Celo no Servido" | "Inseminación" | "Parto" | "Aborto" | "Tratamiento" | "Vacunación" | "Venta" | "Descarte" | "Muerte" | "Destete";
@@ -220,9 +219,8 @@ export default function GestationPage() {
   const persistPigs = React.useCallback(
     async (rawPigs: Pig[]) => {
       if (!user) return;
-      const pigsDocRef = doc(firestoreDb, 'users', user.uid, 'data', 'pigs');
       try {
-        await setDoc(pigsDocRef, { pigs: rawPigs });
+        await savePigs<Pig>(user.uid, rawPigs);
       } catch (error) {
         console.error('Error saving pigs to Firestore', error);
       }
@@ -235,15 +233,7 @@ export default function GestationPage() {
 
     const loadPigs = async () => {
       try {
-        const pigsDocRef = doc(firestoreDb, 'users', user.uid, 'data', 'pigs');
-        const snap = await getDoc(pigsDocRef);
-        let allPigs: Pig[] = initialPigs;
-        if (snap.exists()) {
-          const data = snap.data() as { pigs?: Pig[] };
-          allPigs = data.pigs && Array.isArray(data.pigs) && data.pigs.length > 0 ? data.pigs : initialPigs;
-        } else {
-          await setDoc(pigsDocRef, { pigs: initialPigs });
-        }
+        const allPigs: Pig[] = await loadPigs<Pig>(user.uid, initialPigs);
         const processedPigs = allPigs.map((p: Pig) => ({
           ...p,
           age: calculateAge(p.birthDate)

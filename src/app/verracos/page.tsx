@@ -15,6 +15,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { format, parseISO, isValid, differenceInWeeks } from 'date-fns';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/context/AuthContext';
+import { loadBoars, saveBoars } from '@/lib/boarsStore';
 
 
 interface BoarEvent {
@@ -36,8 +38,6 @@ interface Boar {
     events: BoarEvent[];
 }
 
-const BOAR_STORAGE_KEY = 'boarCollection';
-
 const pigBreeds = [
   "Duroc", "Yorkshire", "Landrace", "Hampshire", "Pietrain", "Berkshire", "Chester White", "Spotted", "Poland China", "Tamworth", "Large Black", "Cerdo Ibérico",
   "PIC", "Topigs Norsvin", "Hypor (Hendrix Genetics)", "DanBred", "Genus", "Choice Genetics", "Genesus",
@@ -52,20 +52,20 @@ const calculateAgeInWeeks = (birthDate: string) => {
 export default function VerracosPage() {
     const router = useRouter();
     const { toast } = useToast();
+    const { user } = useAuth();
     const [boars, setBoars] = React.useState<Boar[]>([]);
     const [isFormOpen, setIsFormOpen] = React.useState(false);
     const [editingBoar, setEditingBoar] = React.useState<Boar | null>(null);
 
-    const loadBoars = React.useCallback(() => {
-        const storedBoars = localStorage.getItem(BOAR_STORAGE_KEY);
-        if (storedBoars) {
-            setBoars(JSON.parse(storedBoars));
-        }
-    }, []);
+    const reloadBoars = React.useCallback(async () => {
+        if (!user) return;
+        const items = await loadBoars<Boar>(user.uid);
+        setBoars(items);
+    }, [user]);
 
     React.useEffect(() => {
-        loadBoars();
-    }, [loadBoars]);
+        reloadBoars().catch((e) => console.error('Boars load failed', e));
+    }, [reloadBoars]);
 
     const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -99,8 +99,11 @@ export default function VerracosPage() {
             toast({ title: 'Verraco Agregado', description: `${newBoar.id} ha sido registrado.` });
         }
 
-        localStorage.setItem(BOAR_STORAGE_KEY, JSON.stringify(updatedBoars));
-        setBoars(updatedBoars);
+        if (user) {
+            saveBoars<Boar>(user.uid, updatedBoars).then(() => setBoars(updatedBoars));
+        } else {
+            setBoars(updatedBoars);
+        }
         setIsFormOpen(false);
         setEditingBoar(null);
     };

@@ -17,6 +17,8 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/context/AuthContext';
+import { loadPigs } from '@/lib/pigsStore';
 
 
 interface Event {
@@ -127,6 +129,7 @@ const KpiCard = ({ title, value }: { title: string, value: string | number }) =>
 export default function WeaningForecastPage() {
     const [pigs, setPigs] = React.useState<Pig[]>([]);
     const [forecasts, setForecasts] = React.useState<WeaningForecast[]>([]);
+    const { user } = useAuth();
     
     // Filter States
     const [startDate, setStartDate] = React.useState<string>(format(new Date(), 'yyyy-MM-dd'));
@@ -134,10 +137,9 @@ export default function WeaningForecastPage() {
     const [breedFilter, setBreedFilter] = React.useState('all');
 
     React.useEffect(() => {
-        const pigsFromStorage = localStorage.getItem('pigs');
-        const allPigs: Pig[] = pigsFromStorage ? JSON.parse(pigsFromStorage) : [];
-        setPigs(allPigs);
-    }, []);
+        if (!user) return;
+        loadPigs<Pig>(user.uid, []).then(setPigs).catch((e) => console.error('Weaning forecast load failed', e));
+    }, [user]);
 
     const handleFilter = React.useCallback(() => {
         let filteredPigs = pigs;

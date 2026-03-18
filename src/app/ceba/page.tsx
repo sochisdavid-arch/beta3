@@ -15,6 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { MultiSelect, Option } from '@/components/ui/multi-select';
+import { useAuth } from '@/context/AuthContext';
+import { loadRecords, saveRecords } from '@/lib/batchesStore';
 
 interface CebaBatch {
     id: string;
@@ -45,28 +47,28 @@ const KpiCard = ({ title, value, icon }: { title: string, value: number, icon: R
 export default function CebaPage() {
     const router = useRouter();
     const { toast } = useToast();
+    const { user } = useAuth();
     const [batches, setBatches] = React.useState<CebaBatch[]>([]);
     const [isFormOpen, setIsFormOpen] = React.useState(false);
     
-    const loadData = React.useCallback(() => {
-        const storedBatches = localStorage.getItem('cebaBatches');
-        if (storedBatches) {
-            const batchData = JSON.parse(storedBatches);
-            const batchArray = Object.values(batchData) as CebaBatch[];
-            setBatches(batchArray.sort((a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime()));
-        }
-    }, []);
+    const loadData = React.useCallback(async () => {
+        if (!user) return;
+        const batchData = await loadRecords<CebaBatch>(user.uid, 'cebaBatches', {});
+        const batchArray = Object.values(batchData) as CebaBatch[];
+        setBatches(batchArray.sort((a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime()));
+    }, [user]);
     
     React.useEffect(() => {
-        loadData();
+        loadData().catch((e) => console.error('Ceba load failed', e));
     }, [loadData]);
 
     const handleRowClick = (batchId: string) => {
         router.push(`/ceba/${batchId}`);
     };
 
-    const handleAddBatchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleAddBatchSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        if (!user) return;
         const formData = new FormData(event.currentTarget);
         const batchId = formData.get('batchId') as string;
         const creationDate = formData.get('creationDate') as string;
@@ -86,7 +88,7 @@ export default function CebaPage() {
             events: [],
         };
         
-        const storedBatches = JSON.parse(localStorage.getItem('cebaBatches') || '{}');
+        const storedBatches = await loadRecords<CebaBatch>(user.uid, 'cebaBatches', {});
         if (storedBatches[batchId]) {
             toast({
                 variant: 'destructive',
@@ -97,7 +99,7 @@ export default function CebaPage() {
         }
 
         storedBatches[batchId] = newBatch;
-        localStorage.setItem('cebaBatches', JSON.stringify(storedBatches));
+        await saveRecords<CebaBatch>(user.uid, 'cebaBatches', storedBatches);
 
         toast({
             title: '¡Lote de Ceba Creado!',

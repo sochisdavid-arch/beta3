@@ -15,6 +15,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { MultiSelect, Option } from '@/components/ui/multi-select';
+import { useAuth } from '@/context/AuthContext';
+import { loadPigs } from '@/lib/pigsStore';
+import { loadRecords, saveRecords } from '@/lib/batchesStore';
 
 interface NurseryBatch {
     id: string;
@@ -49,27 +52,21 @@ const KpiCard = ({ title, value, icon }: { title: string, value: number, icon: R
 export default function PreceboPage() {
     const router = useRouter();
     const { toast } = useToast();
+    const { user } = useAuth();
     const [batches, setBatches] = React.useState<NurseryBatch[]>([]);
     const [isFormOpen, setIsFormOpen] = React.useState(false);
     const [sowOptions, setSowOptions] = React.useState<Option[]>([]);
     const [selectedSows, setSelectedSows] = React.useState<string[]>([]);
 
-    const loadData = React.useCallback(() => {
-        const storedBatches = localStorage.getItem('nurseryBatches');
-        if (storedBatches) {
-            const batchData = JSON.parse(storedBatches);
-            const batchArray = Object.values(batchData).map(batch => ({
-                ...(batch as NurseryBatch),
-                pigletCount: Number((batch as NurseryBatch).pigletCount),
-                initialPigletCount: Number((batch as NurseryBatch).initialPigletCount),
-                totalWeight: Number((batch as NurseryBatch).totalWeight),
-                avgWeight: Number((batch as NurseryBatch).avgWeight),
-                avgAge: Number((batch as NurseryBatch).avgAge),
-            })) as NurseryBatch[];
-            setBatches(batchArray.sort((a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime()));
-        } else {
-             const exampleBatchId = 'PRECEBO-2024-28';
-             const exampleBatch: Record<string, NurseryBatch> = {
+    const loadData = React.useCallback(async () => {
+        if (!user) return;
+
+        const batchData = await loadRecords<NurseryBatch>(user.uid, 'nurseryBatches', {});
+        let records = batchData;
+
+        if (!records || Object.keys(records).length === 0) {
+            const exampleBatchId = 'PRECEBO-2024-28';
+            records = {
                 [exampleBatchId]: {
                     id: exampleBatchId,
                     creationDate: '2024-07-12',
@@ -82,28 +79,34 @@ export default function PreceboPage() {
                     status: 'Activo',
                     events: [],
                 }
-             };
-             localStorage.setItem('nurseryBatches', JSON.stringify(exampleBatch));
-             setBatches(Object.values(exampleBatch));
+            };
+            await saveRecords<NurseryBatch>(user.uid, 'nurseryBatches', records);
         }
 
-        const storedPigs = localStorage.getItem('pigs');
-        if (storedPigs) {
-            const allPigs = JSON.parse(storedPigs) as Pig[];
-            const femalePigs = allPigs.filter(p => p.gender === 'Hembra');
-            setSowOptions(femalePigs.map(p => ({ value: p.id, label: p.id })));
-        }
-    }, []);
+        const batchArray = Object.values(records).map(batch => ({
+            ...(batch as NurseryBatch),
+            pigletCount: Number((batch as NurseryBatch).pigletCount),
+            initialPigletCount: Number((batch as NurseryBatch).initialPigletCount),
+            totalWeight: Number((batch as NurseryBatch).totalWeight),
+            avgWeight: Number((batch as NurseryBatch).avgWeight),
+            avgAge: Number((batch as NurseryBatch).avgAge),
+        })) as NurseryBatch[];
+        setBatches(batchArray.sort((a, b) => new Date(b.creationDate).getTime() - new Date(a.creationDate).getTime()));
+
+        const pigs = await loadPigs<Pig>(user.uid, []);
+        const femalePigs = pigs.filter(p => p.gender === 'Hembra');
+        setSowOptions(femalePigs.map(p => ({ value: p.id, label: p.id })));
+    }, [user]);
     
     React.useEffect(() => {
-        loadData();
+        loadData().catch((e) => console.error('Precebo load failed', e));
     }, [loadData]);
 
     const handleRowClick = (batchId: string) => {
         router.push(`/precebo/${batchId}`);
     };
 
-    const handleAddBatchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleAddBatchSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
         const batchId = formData.get('batchId') as string;
@@ -124,7 +127,8 @@ export default function PreceboPage() {
             events: [],
         };
         
-        const storedBatches = JSON.parse(localStorage.getItem('nurseryBatches') || '{}');
+        if (!user) return;
+        const storedBatches = await loadRecords<NurseryBatch>(user.uid, 'nurseryBatches', {});
         if (storedBatches[batchId]) {
             toast({
                 variant: 'destructive',
@@ -135,7 +139,7 @@ export default function PreceboPage() {
         }
 
         storedBatches[batchId] = newBatch;
-        localStorage.setItem('nurseryBatches', JSON.stringify(storedBatches));
+        await saveRecords<NurseryBatch>(user.uid, 'nurseryBatches', storedBatches);
 
         toast({
             title: '¡Lote Creado!',

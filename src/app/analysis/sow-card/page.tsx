@@ -3,6 +3,8 @@
 
 import * as React from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { loadPigs } from '@/lib/pigsStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -117,6 +119,7 @@ const FarrowingRecordForm = () => (
 export default function SowCardPage() {
     const searchParams = useSearchParams();
     const sowIdFromQuery = searchParams.get('sowId');
+    const { user } = useAuth();
     
     const [allSows, setAllSows] = React.useState<Pig[]>([]);
     const [selectedSow, setSelectedSow] = React.useState<Pig | null>(null);
@@ -125,22 +128,23 @@ export default function SowCardPage() {
     const [sowData, setSowData] = React.useState<SowData | null>(null);
 
     React.useEffect(() => {
-        const pigsFromStorage = localStorage.getItem('pigs');
-        if (pigsFromStorage) {
-            const allPigs: Pig[] = JSON.parse(pigsFromStorage);
+        if (!user) return;
+        const run = async () => {
+            const allPigs: Pig[] = await loadPigs<Pig>(user.uid, []);
             const femalePigs = allPigs.filter(p => p.gender === 'Hembra');
             setAllSows(femalePigs);
 
             if (sowIdFromQuery) {
                 const sowToSelect = femalePigs.find(s => s.id === sowIdFromQuery);
-                if(sowToSelect) {
+                if (sowToSelect) {
                     const processedData = processSowHistory(sowToSelect);
                     setSelectedSow(sowToSelect);
                     setSowData(processedData);
                 }
             }
-        }
-    }, [sowIdFromQuery]);
+        };
+        run().catch((e) => console.error('Sow card load failed', e));
+    }, [sowIdFromQuery, user]);
 
     const handleSowSelection = (sowId: string) => {
         const sowToSelect = allSows.find(s => s.id === sowId);

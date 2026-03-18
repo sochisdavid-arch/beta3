@@ -8,6 +8,8 @@ import { differenceInDays, parseISO, addDays, isValid, format } from 'date-fns';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Bell, Baby, Repeat, HeartPulse } from 'lucide-react';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
+import { loadPigs } from '@/lib/pigsStore';
 
 interface Event {
     id: string;
@@ -65,11 +67,13 @@ const KpiCard = ({ title, value, unit, description }: { title: string, value: st
 export default function DashboardPage() {
     const [kpiData, setKpiData] = React.useState<KpiData | null>(null);
     const [alerts, setAlerts] = React.useState<AlertData[]>([]);
+    const { user } = useAuth();
 
     React.useEffect(() => {
-        const pigsFromStorage = localStorage.getItem('pigs');
-        if (pigsFromStorage) {
-            const allPigs: Pig[] = JSON.parse(pigsFromStorage);
+        if (!user) return;
+
+        const run = async () => {
+            const allPigs: Pig[] = await loadPigs<Pig>(user.uid, []);
             const sows = allPigs.filter(p => p.gender === 'Hembra');
             
             // KPI Calculation
@@ -187,8 +191,10 @@ export default function DashboardPage() {
             });
             
             setAlerts(upcomingAlerts.sort((a,b) => parseISO(a.date).getTime() - parseISO(b.date).getTime()));
-        }
-    }, []);
+        };
+
+        run().catch((e) => console.error('Dashboard pigs load failed', e));
+    }, [user]);
 
     const alertIcons = {
         parto: <Baby className="h-5 w-5 text-blue-500" />,

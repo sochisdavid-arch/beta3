@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useAuth } from '@/context/AuthContext';
+import { loadPigs } from '@/lib/pigsStore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Filter, CalendarIcon, MoreHorizontal, SlidersHorizontal, BarChart2, Circle } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -92,14 +94,13 @@ export default function BirthAnalysisPage() {
     const [monthlyData, setMonthlyData] = React.useState<any[]>([]);
     const [distributionData, setDistributionData] = React.useState<any>({});
     const [heatmapData, setHeatmapData] = React.useState<number[][]>([]);
+    const { user } = useAuth();
 
 
     React.useEffect(() => {
-        const pigsFromStorage = localStorage.getItem('pigs');
-        if (pigsFromStorage) {
-            setAllPigs(JSON.parse(pigsFromStorage));
-        }
-    }, []);
+        if (!user) return;
+        loadPigs<Pig>(user.uid, []).then(setAllPigs).catch((e) => console.error('Birth analysis load failed', e));
+    }, [user]);
 
     const handleFilter = React.useCallback(() => {
         const start = startOfDay(parseISO(startDate));

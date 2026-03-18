@@ -16,6 +16,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { useAuth } from '@/context/AuthContext';
+import { loadPigs } from '@/lib/pigsStore';
 
 interface Event {
     id: string;
@@ -101,16 +103,16 @@ const findReproductiveLosses = (pigs: Pig[], startDate: Date, endDate: Date): Lo
 export default function ReproductiveLossPage() {
     const [pigs, setPigs] = React.useState<Pig[]>([]);
     const [lossRecords, setLossRecords] = React.useState<LossRecord[]>([]);
+    const { user } = useAuth();
     
     const [startDate, setStartDate] = React.useState<string>(format(sub(new Date(), { years: 1 }), 'yyyy-MM-dd'));
     const [endDate, setEndDate] = React.useState<string>(format(new Date(), 'yyyy-MM-dd'));
     const [lossTypeFilter, setLossTypeFilter] = React.useState('all');
 
     React.useEffect(() => {
-        const pigsFromStorage = localStorage.getItem('pigs');
-        const allPigs: Pig[] = pigsFromStorage ? JSON.parse(pigsFromStorage) : [];
-        setPigs(allPigs);
-    }, []);
+        if (!user) return;
+        loadPigs<Pig>(user.uid, []).then(setPigs).catch((e) => console.error('Reproductive loss load failed', e));
+    }, [user]);
 
     const handleFilter = React.useCallback(() => {
         const start = startOfDay(parseISO(startDate));

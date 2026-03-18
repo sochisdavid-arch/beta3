@@ -15,6 +15,8 @@ import { es } from 'date-fns/locale';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } from 'recharts';
 import Link from 'next/link';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { useAuth } from '@/context/AuthContext';
+import { loadPigs } from '@/lib/pigsStore';
 
 interface Event {
     id: string;
@@ -82,13 +84,12 @@ export default function MortalityAnalysisPage() {
     const [paginatedData, setPaginatedData] = React.useState<MortalityData[]>([]);
     const [currentPage, setCurrentPage] = React.useState(1);
     const rowsPerPage = 10;
+    const { user } = useAuth();
 
     React.useEffect(() => {
-        const pigsFromStorage = localStorage.getItem('pigs');
-        if (pigsFromStorage) {
-            setAllPigs(JSON.parse(pigsFromStorage));
-        }
-    }, []);
+        if (!user) return;
+        loadPigs<Pig>(user.uid, []).then(setAllPigs).catch((e) => console.error('Mortality load failed', e));
+    }, [user]);
 
     const handleFilter = React.useCallback(() => {
         const start = startOfDay(parseISO(startDate));

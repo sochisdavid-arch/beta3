@@ -20,6 +20,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/context/AuthContext';
+import { getUserDataDoc, setUserDataDoc } from '@/lib/userData';
 
 const formatCurrency = (value?: number) => {
     if (value === undefined || value === null) return '$0';
@@ -35,14 +37,23 @@ export default function FinancePage() {
     const [filter, setFilter] = React.useState('all');
     const [isFormOpen, setIsFormOpen] = React.useState(false);
     const { toast } = useToast();
+    const { user } = useAuth();
 
-    const loadFinancialData = React.useCallback(() => {
-        const liquidatedPreceboReports = JSON.parse(localStorage.getItem('liquidatedPreceboReports') || '[]');
-        const liquidatedCebaReports = JSON.parse(localStorage.getItem('liquidatedCebaReports') || '[]');
-        const pigs = JSON.parse(localStorage.getItem('pigs') || '[]');
-        const foodPurchases = JSON.parse(localStorage.getItem('foodPurchaseHistory') || '[]');
-        const personnel = JSON.parse(localStorage.getItem('personnelList') || '[]');
-        const manualTransactions = JSON.parse(localStorage.getItem('manualTransactions') || '[]');
+    const loadFinancialData = React.useCallback(async () => {
+        if (!user) return;
+
+        const liquidatedPreceboReportsDoc = await getUserDataDoc<{ items: any[] }>(user.uid, 'liquidatedPreceboReports', { items: [] }, false);
+        const liquidatedPreceboReports = liquidatedPreceboReportsDoc.items || [];
+        const liquidatedCebaReportsDoc = await getUserDataDoc<{ items: any[] }>(user.uid, 'liquidatedCebaReports', { items: [] }, false);
+        const liquidatedCebaReports = liquidatedCebaReportsDoc.items || [];
+        const pigsDoc = await getUserDataDoc<{ pigs: any[] }>(user.uid, 'pigs', { pigs: [] }, false);
+        const pigs = pigsDoc?.pigs || [];
+        const foodPurchasesDoc = await getUserDataDoc<{ items: any[] }>(user.uid, 'foodPurchaseHistory', { items: [] }, false);
+        const foodPurchases = foodPurchasesDoc.items || [];
+        const personnelDoc = await getUserDataDoc<{ personnel: any[] }>(user.uid, 'personnelList', { personnel: [] }, false);
+        const personnel = (personnelDoc as any)?.personnel || [];
+        const manualTransactionsDoc = await getUserDataDoc<{ items: any[] }>(user.uid, 'manualTransactions', { items: [] }, false);
+        const manualTransactions = manualTransactionsDoc.items || [];
 
         const { 
             transactions: allTransactions, 
@@ -63,10 +74,10 @@ export default function FinancePage() {
         setSummary(financialSummary);
         setMonthlyData(financialMonthlyData);
         setCostPerKilo(calculatedCostPerKilo);
-    }, []);
+    }, [user]);
 
     React.useEffect(() => {
-        loadFinancialData();
+        loadFinancialData().catch((e) => console.error('Finance load failed', e));
     }, [loadFinancialData]);
 
     React.useEffect(() => {
@@ -77,7 +88,7 @@ export default function FinancePage() {
         }
     }, [filter, transactions]);
     
-    const handleTransactionSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleTransactionSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
         const type = formData.get('type') as 'income' | 'expense';
@@ -100,9 +111,10 @@ export default function FinancePage() {
             amount,
         };
 
-        const manualTransactions = JSON.parse(localStorage.getItem('manualTransactions') || '[]');
-        manualTransactions.push(newTransaction);
-        localStorage.setItem('manualTransactions', JSON.stringify(manualTransactions));
+        if (!user) return;
+        const manualTransactionsDoc = await getUserDataDoc<{ items: any[] }>(user.uid, 'manualTransactions', { items: [] });
+        const updated = [...(manualTransactionsDoc.items || []), newTransaction];
+        await setUserDataDoc<{ items: any[] }>(user.uid, 'manualTransactions', { items: updated });
 
         toast({
             title: '¡Movimiento Registrado!',

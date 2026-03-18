@@ -34,6 +34,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { useAuth } from '@/context/AuthContext';
+import { loadPigs, savePigs } from '@/lib/pigsStore';
 
 
 type StatusType = 'Gestante' | 'Vacia' | 'Destetada' | 'Remplazo' | 'Lactante';
@@ -161,6 +163,7 @@ const KpiCard = ({ title, value, icon }: { title: string, value: number, icon: R
 export default function LactationPage() {
     const router = useRouter();
     const { toast } = useToast();
+    const { user } = useAuth();
     const [allPigs, setAllPigs] = React.useState<Pig[]>([]);
     const [lactatingSows, setLactatingSows] = React.useState<Pig[]>([]);
 
@@ -169,33 +172,18 @@ export default function LactationPage() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
     const [pigToDelete, setPigToDelete] = React.useState<Pig | null>(null);
     
-    const loadPigs = React.useCallback(() => {
-        const pigsFromStorage = localStorage.getItem('pigs');
-        const allPigsData: Pig[] = pigsFromStorage ? JSON.parse(pigsFromStorage) : initialPigs;
-        
-        if (!pigsFromStorage) {
-            localStorage.setItem('pigs', JSON.stringify(initialPigs));
-        }
-
+    const loadAllPigs = React.useCallback(async () => {
+        if (!user) return;
+        const allPigsData: Pig[] = await loadPigs<Pig>(user.uid, initialPigs);
         const processedPigs = allPigsData.map(p => ({...p, age: calculateAge(p.birthDate)}));
         setAllPigs(processedPigs);
         const lactating = processedPigs.filter(p => p.status === 'Lactante');
         setLactatingSows(lactating);
-    }, []);
+    }, [user]);
 
     React.useEffect(() => {
-        loadPigs();
-        
-        const handleStorageChange = () => {
-            loadPigs();
-        };
-
-        window.addEventListener('storage', handleStorageChange);
-        
-        return () => {
-            window.removeEventListener('storage', handleStorageChange);
-        };
-    }, [loadPigs]);
+        loadAllPigs().catch((e) => console.error('Lactation load failed', e));
+    }, [loadAllPigs]);
 
 
     const openEditDialog = (pig: Pig) => {
@@ -234,8 +222,9 @@ export default function LactationPage() {
             };
             
             const updatedPigs = allPigs.map(p => p.id === editingPig.id ? submittedAnimal : p);
-            localStorage.setItem('pigs', JSON.stringify(updatedPigs));
-            loadPigs();
+            if (user) {
+                savePigs<Pig>(user.uid, updatedPigs).then(() => loadAllPigs());
+            }
         }
         
         toast({
@@ -250,8 +239,9 @@ export default function LactationPage() {
     const handleDeleteConfirm = () => {
         if (pigToDelete) {
             const newPigs = allPigs.filter(p => p.id !== pigToDelete.id);
-            localStorage.setItem('pigs', JSON.stringify(newPigs));
-            loadPigs();
+            if (user) {
+                savePigs<Pig>(user.uid, newPigs).then(() => loadAllPigs());
+            }
             toast({
                 title: "Animal Eliminado",
                 description: `El animal con ID ${pigToDelete.id} ha sido eliminado.`,

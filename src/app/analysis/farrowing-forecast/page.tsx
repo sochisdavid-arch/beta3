@@ -17,6 +17,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '@/context/AuthContext';
+import { loadPigs } from '@/lib/pigsStore';
 
 interface Event {
     id: string;
@@ -97,6 +99,7 @@ const findFarrowingForecasts = (pigs: Pig[]): FarrowingForecast[] => {
 export default function FarrowingForecastPage() {
     const [pigs, setPigs] = React.useState<Pig[]>([]);
     const [forecasts, setForecasts] = React.useState<FarrowingForecast[]>([]);
+    const { user } = useAuth();
     
     // Filter States
     const [startDate, setStartDate] = React.useState<string>(format(new Date(), 'yyyy-MM-dd'));
@@ -106,10 +109,9 @@ export default function FarrowingForecastPage() {
     const [cycleEnd, setCycleEnd] = React.useState<number | string>('');
 
     React.useEffect(() => {
-        const pigsFromStorage = localStorage.getItem('pigs');
-        const allPigs: Pig[] = pigsFromStorage ? JSON.parse(pigsFromStorage) : [];
-        setPigs(allPigs);
-    }, []);
+        if (!user) return;
+        loadPigs<Pig>(user.uid, []).then(setPigs).catch((e) => console.error('Farrowing forecast load failed', e));
+    }, [user]);
 
     const handleFilter = React.useCallback(() => {
         let filteredPigs = pigs;
