@@ -10,12 +10,14 @@ import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/Logo';
 import { useToast } from '@/hooks/use-toast';
 import { Globe, Building, Phone } from 'lucide-react';
-
-const FARM_INFO_KEY = 'farmInformation';
+import { firestoreDb } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { useAuth } from '@/context/AuthContext';
 
 export default function FarmSetupPage() {
     const router = useRouter();
     const { toast } = useToast();
+    const { user } = useAuth();
 
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -27,14 +29,32 @@ export default function FarmSetupPage() {
             phone: formData.get('phone'),
         };
 
-        localStorage.setItem(FARM_INFO_KEY, JSON.stringify(farmInfo));
+        if (!user) {
+            toast({
+                variant: 'destructive',
+                title: 'Sesión requerida',
+                description: 'Debes iniciar sesión para guardar la información de tu granja.',
+            });
+            return;
+        }
 
-        toast({
-            title: '¡Granja Configurada!',
-            description: 'La información de tu granja ha sido guardada. ¡Bienvenido a SmartPig!',
-        });
-        
-        router.push('/dashboard');
+        const farmDocRef = doc(firestoreDb, 'users', user.uid, 'profile', 'farm');
+        setDoc(farmDocRef, farmInfo)
+            .then(() => {
+                toast({
+                    title: '¡Granja Configurada!',
+                    description: 'La información de tu granja ha sido guardada. ¡Bienvenido a SmartPig!',
+                });
+                router.push('/dashboard');
+            })
+            .catch(() => {
+                toast({
+                    variant: 'destructive',
+                    title: 'Error al guardar',
+                    description: 'No se pudo guardar la información de la granja. Inténtalo de nuevo.',
+                });
+            });
+
     };
 
     return (

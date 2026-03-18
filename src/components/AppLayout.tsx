@@ -56,25 +56,41 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Logo } from '@/components/Logo';
-import { auth } from "@/lib/firebase";
+import { auth, firestoreDb } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/context/AuthContext";
+import { doc, getDoc } from "firebase/firestore";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   React.useEffect(() => {
-    const farmInfo = localStorage.getItem('farmInformation');
-    if (!farmInfo && pathname !== '/farm-setup' && !pathname.startsWith('/licensing') && !pathname.startsWith('/payment-confirmation')) {
-      toast({
-        title: "Configuración requerida",
-        description: "Por favor, completa la configuración de tu granja para continuar.",
-      });
-      router.push('/farm-setup');
+    if (!user) {
+      return;
     }
-  }, [pathname, router, toast]);
+
+    const checkFarm = async () => {
+      try {
+        const farmDocRef = doc(firestoreDb, 'users', user.uid, 'profile', 'farm');
+        const snap = await getDoc(farmDocRef);
+        if (!snap.exists() && pathname !== '/farm-setup' && !pathname.startsWith('/licensing') && !pathname.startsWith('/payment-confirmation')) {
+          toast({
+            title: "Configuración requerida",
+            description: "Por favor, completa la configuración de tu granja para continuar.",
+          });
+          router.push('/farm-setup');
+        }
+      } catch (error) {
+        console.error('Error checking farm configuration', error);
+      }
+    };
+
+    checkFarm();
+  }, [pathname, router, toast, user]);
 
   const handleSignOut = async () => {
     try {

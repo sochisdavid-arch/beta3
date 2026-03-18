@@ -37,6 +37,9 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { deductFromStock, getInventory } from '@/lib/inventory';
 import { checkLicense, getLicenseInfo } from '@/lib/license';
+import { firestoreDb } from '@/lib/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { useAuth } from '@/context/AuthContext';
 
 
 type EventType = "Celo" | "Celo no Servido" | "Inseminación" | "Parto" | "Aborto" | "Tratamiento" | "Vacunación" | "Venta" | "Descarte" | "Muerte" | "Destete";
@@ -212,19 +215,52 @@ export default function GestationPage() {
     return '0.00';
   }, [consumptionQuantity, consumptionSowCount]);
 
+  const { user } = useAuth();
+
+  const persistPigs = React.useCallback(
+    async (rawPigs: Pig[]) => {
+      if (!user) return;
+      const pigsDocRef = doc(firestoreDb, 'users', user.uid, 'data', 'pigs');
+      try {
+        await setDoc(pigsDocRef, { pigs: rawPigs });
+      } catch (error) {
+        console.error('Error saving pigs to Firestore', error);
+      }
+    },
+    [user]
+  );
+
   React.useEffect(() => {
-    // Load pigs from localStorage
-    const pigsFromStorage = localStorage.getItem('pigs');
-    const allPigs = pigsFromStorage ? JSON.parse(pigsFromStorage) : initialPigs;
-    const processedPigs = allPigs.map((p: Pig) => ({
-      ...p,
-      age: calculateAge(p.birthDate)
-    }));
-    setPigs(processedPigs);
-    if (!pigsFromStorage) {
-        localStorage.setItem('pigs', JSON.stringify(initialPigs));
-    }
-  }, []);
+    if (!user) return;
+
+    const loadPigs = async () => {
+      try {
+        const pigsDocRef = doc(firestoreDb, 'users', user.uid, 'data', 'pigs');
+        const snap = await getDoc(pigsDocRef);
+        let allPigs: Pig[] = initialPigs;
+        if (snap.exists()) {
+          const data = snap.data() as { pigs?: Pig[] };
+          allPigs = data.pigs && Array.isArray(data.pigs) && data.pigs.length > 0 ? data.pigs : initialPigs;
+        } else {
+          await setDoc(pigsDocRef, { pigs: initialPigs });
+        }
+        const processedPigs = allPigs.map((p: Pig) => ({
+          ...p,
+          age: calculateAge(p.birthDate)
+        }));
+        setPigs(processedPigs);
+      } catch (error) {
+        console.error('Error loading pigs from Firestore', error);
+        const processedPigs = initialPigs.map((p: Pig) => ({
+          ...p,
+          age: calculateAge(p.birthDate)
+        }));
+        setPigs(processedPigs);
+      }
+    };
+
+    loadPigs();
+  }, [user]);
 
 
   React.useEffect(() => {
@@ -311,15 +347,11 @@ export default function GestationPage() {
         setPigs(prevPigs => [...prevPigs, submittedAnimal]);
     }
     
-    // Update localStorage
-    const pigsFromStorage = localStorage.getItem('pigs');
-    let allPigs = pigsFromStorage ? JSON.parse(pigsFromStorage) : [];
-    if (editingPig) {
-        allPigs = allPigs.map((p: Pig) => p.id === editingPig.id ? submittedAnimal : p);
-    } else {
-        allPigs.push(submittedAnimal);
-    }
-    localStorage.setItem('pigs', JSON.stringify(allPigs));
+    // Persist raw pigs array to Firestore
+    const rawPigs = editingPig
+      ? pigs.map(p => p.id === editingPig.id ? submittedAnimal : p)
+      : [...pigs, submittedAnimal];
+    persistPigs(rawPigs);
     
     toast({
         title: editingPig ? "Animal Actualizado" : "Animal Añadido",
@@ -360,7 +392,7 @@ export default function GestationPage() {
     if (pigToDelete) {
         const newPigs = pigs.filter(p => p.id !== pigToDelete.id)
         setPigs(newPigs);
-        localStorage.setItem('pigs', JSON.stringify(newPigs));
+        persistPigs(newPigs);
          toast({
             title: "Animal Eliminado",
             description: `El animal con ID ${pigToDelete.id} ha sido eliminado.`,
