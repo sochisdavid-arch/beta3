@@ -13,20 +13,21 @@ import { Globe, Building, Phone } from 'lucide-react';
 import { firestoreDb } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
+import { FirebaseError } from 'firebase/app';
 
 export default function FarmSetupPage() {
     const router = useRouter();
     const { toast } = useToast();
     const { user } = useAuth();
 
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         const formData = new FormData(event.currentTarget);
         const farmInfo = {
-            farmName: formData.get('farmName'),
-            location: formData.get('location'),
-            country: formData.get('country'),
-            phone: formData.get('phone'),
+            farmName: String(formData.get('farmName') ?? ''),
+            location: String(formData.get('location') ?? ''),
+            country: String(formData.get('country') ?? ''),
+            phone: String(formData.get('phone') ?? ''),
         };
 
         if (!user) {
@@ -38,22 +39,26 @@ export default function FarmSetupPage() {
             return;
         }
 
-        const farmDocRef = doc(firestoreDb, 'users', user.uid, 'profile', 'farm');
-        setDoc(farmDocRef, farmInfo)
-            .then(() => {
-                toast({
-                    title: '¡Granja Configurada!',
-                    description: 'La información de tu granja ha sido guardada. ¡Bienvenido a SmartPig!',
-                });
-                router.push('/dashboard');
-            })
-            .catch(() => {
-                toast({
-                    variant: 'destructive',
-                    title: 'Error al guardar',
-                    description: 'No se pudo guardar la información de la granja. Inténtalo de nuevo.',
-                });
+        try {
+            const farmDocRef = doc(firestoreDb, 'users', user.uid, 'profile', 'farm');
+            await setDoc(farmDocRef, farmInfo);
+            toast({
+                title: '¡Granja Configurada!',
+                description: 'La información de tu granja ha sido guardada. ¡Bienvenido a SmartPig!',
             });
+            router.push('/dashboard');
+        } catch (error) {
+            const details =
+                error instanceof FirebaseError
+                    ? `${error.code}${error.message ? `: ${error.message}` : ''}`
+                    : (error instanceof Error ? error.message : 'Error desconocido');
+            toast({
+                variant: 'destructive',
+                title: 'Error al guardar',
+                description: `No se pudo guardar la información de la granja. ${details}`,
+            });
+            console.error('Farm setup save failed', error);
+        }
 
     };
 

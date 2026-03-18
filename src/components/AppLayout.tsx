@@ -61,6 +61,7 @@ import { signOut } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { doc, getDoc } from "firebase/firestore";
+import { FirebaseError } from "firebase/app";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -85,7 +86,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           router.push('/farm-setup');
         }
       } catch (error) {
+        const details =
+          error instanceof FirebaseError
+            ? `${error.code}${error.message ? `: ${error.message}` : ""}`
+            : (error instanceof Error ? error.message : "Error desconocido");
         console.error('Error checking farm configuration', error);
+        toast({
+          variant: "destructive",
+          title: "No se pudo verificar tu granja",
+          description: details,
+        });
       }
     };
 
